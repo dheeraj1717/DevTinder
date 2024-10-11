@@ -4,7 +4,12 @@ const User = require("./models/user");
 const app = express();
 const { validateSignUpData } = require("./utils/validation");
 const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const { userAuth } = require("./middlewares/auth");
+
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/signUp", async (req, res) => {
   try {
@@ -41,10 +46,16 @@ app.post("/logIn", async (req, res) => {
     if (!user) {
       throw new Error("Invalid Credentials");
     } else {
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      const isPasswordValid = await user.validatePassword(password);
       if (!isPasswordValid) {
         throw new Error("Invalid Credentials");
       } else {
+        // create a jwt token
+        const token = await user.getJWTToken();
+
+        res.cookie("token", token, { 
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+         });
         res.send("Login successful");
       }
     }
@@ -83,6 +94,28 @@ app.get("/feed", async (req, res) => {
     } else {
       res.send(users);
     }
+  } catch (error) {
+    res.status(400).send("Something went wrong");
+  }
+});
+
+app.get("/profile", userAuth, async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      res.status(404).send("User not found");
+    } else {
+      res.send(user);
+    }
+  } catch (error) {
+    res.status(400).send("Something went wrong");
+  }
+});
+
+app.post("/sendConnectionRequest", userAuth, async (req, res) => {
+  try {
+    console.log("sending connection req");
+    res.send("connection req sent");
   } catch (error) {
     res.status(400).send("Something went wrong");
   }
