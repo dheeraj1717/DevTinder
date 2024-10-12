@@ -50,4 +50,36 @@ userRouter.get("/user/connections", userAuth, async (req, res) => {
   }
 });
 
+userRouter.get("/feed", userAuth, async (req, res) => {
+  try {
+    // what user should  see? -> everything accept the user and the cards he had already interacted with
+
+    const loggedInUser = req.user;
+    const page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 10;
+    limit = limit > 50 ? 50 : limit;
+    const skip = (page - 1) * limit;
+    // find all the connections (sent and received)
+    const connectionRequests = await ConnectionRequest.find({
+      $or: [{ senderId: loggedInUser._id }, { receiverId: loggedInUser._id }],
+    }).select("senderId receiverId");
+
+    const hideUsersFromFeed = new Set();
+
+    connectionRequests.forEach((connectionRequest) => {
+      hideUsersFromFeed.add(connectionRequest.receiverId.toString());
+      hideUsersFromFeed.add(connectionRequest.senderId.toString());
+    });
+
+    const users = await User.find({
+      $and: [
+        { _id: { $nin: Array.from(hideUsersFromFeed) } },
+        { _id: { $ne: loggedInUser._id } },
+      ],
+    }).select(USER_SAFE_DATA).skip(skip).limit(limit);
+    res.send(users);
+  } catch (error) {
+    res.status(400).send("Error: " + error.message);
+  }
+});
 module.exports = userRouter;
