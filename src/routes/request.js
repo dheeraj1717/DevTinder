@@ -47,18 +47,53 @@ requestRouter.post(
 
       await connectionRequest.save().then(() => {
         let dynamicMessage = "";
-      
+
         if (status === "ignored") {
           dynamicMessage = `${req.user.firstName} has ignored the request from ${receiver.firstName}.`;
         } else if (status === "interested") {
           dynamicMessage = `${req.user.firstName} is interested in connecting with ${receiver.firstName}.`;
         }
-      
+
         res.json({
           message: dynamicMessage,
         });
       });
-      
+    } catch (error) {
+      res.status(400).send("Error: " + error.message);
+    }
+  }
+);
+
+requestRouter.post(
+  "/request/review/:status/:requestId",
+  userAuth,
+  async (req, res) => {
+    try {
+      const loggedInUser = req.user;
+      const { status, requestId } = req.params;
+      const allowedStatus = ["accepted", "rejected"];
+      if (!allowedStatus.includes(status)) {
+        return res
+          .status(400)
+          .json({ message: "Invalid status type" + status });
+      }
+
+      const connectionRequest = await ConnectionRequest.findOne({
+        _id: requestId,
+        receiverId: loggedInUser._id,
+        status: "interested",
+      });
+      if (!connectionRequest) {
+        return res
+          .status(404)
+          .json({ message: "Connection request not found" });
+      }
+      connectionRequest.status = status;
+      await connectionRequest.save().then(() => {
+        res.json({
+          message: "Connection request updated successfully",
+        });
+      });
     } catch (error) {
       res.status(400).send("Error: " + error.message);
     }
